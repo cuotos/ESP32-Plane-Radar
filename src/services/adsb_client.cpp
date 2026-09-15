@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "config.h"
+#include "ui/radar_range.h"
 
 namespace services::adsb {
 
@@ -183,9 +184,13 @@ void formatAltitudeTag(const JsonObject& plane, char* out, size_t out_len) {
   float alt = 0.0f;
   if (readJsonFloat(plane, "alt_baro", &alt) ||
       readJsonFloat(plane, "alt_geom", &alt)) {
-    // UK radar label style: altitude in hundreds of feet, 3 digits
-    // (3000 ft -> "030", 24000 ft -> "240").
-    snprintf(out, out_len, "%03d", static_cast<int>(lroundf(alt / 100.0f)));
+    if (ui::radar::flightLevels()) {
+      // UK radar label style: altitude in hundreds of feet, 3 digits
+      // (3000 ft -> "030", 24000 ft -> "240").
+      snprintf(out, out_len, "%03d", static_cast<int>(lroundf(alt / 100.0f)));
+    } else {
+      snprintf(out, out_len, "%d ft", static_cast<int>(lroundf(alt)));
+    }
   }
 }
 
