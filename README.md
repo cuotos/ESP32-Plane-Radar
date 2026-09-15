@@ -41,7 +41,7 @@ The portal has eight location rows, each with **name**, **latitude** and **longi
 
 Names are capped at 14 characters. A row with a bad coordinate is ignored and reported on the serial log; the other rows still save. Select a location from the device menu.
 
-If you have never picked one, the device uses the first row in the list. With no locations set at all, it falls back to `kDefaultRadarLat` / `kDefaultRadarLon` in `include/config.h`.
+Each row has a radio button: pick one in the portal to set the active location, or select it from the device menu. If you have never picked one, the device uses the first row in the list. With no locations set at all, it falls back to `kDefaultRadarLat` / `kDefaultRadarLon` in `include/config.h`.
 
 ## Wi‑Fi setup portal
 

@@ -20,6 +20,8 @@ const Location* at(size_t index);
 uint8_t selectedIndex();
 /** Apply a location as the radar centre and remember the choice. */
 bool select(size_t index);
+/** Same, found by name. Blank rows shift indices, so the portal selects by name. */
+bool selectByName(const char* name);
 
 /** Join one-per-row portal lines and save them. See saveFromPortal(). */
 bool saveFromPortalLines(const char* const* lines, size_t line_count, char* err,

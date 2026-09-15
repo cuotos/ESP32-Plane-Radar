@@ -93,6 +93,18 @@ bool select(size_t index) {
   return true;
 }
 
+bool selectByName(const char* name) {
+  if (name == nullptr || name[0] == '\0') {
+    return false;
+  }
+  for (size_t i = 0; i < s_list.count; ++i) {
+    if (strcmp(s_list.items[i].name, name) == 0) {
+      return select(i);
+    }
+  }
+  return false;
+}
+
 bool saveFromPortalLines(const char* const* lines, size_t line_count, char* err,
                          size_t err_size) {
   char joined[kRawTextSize];

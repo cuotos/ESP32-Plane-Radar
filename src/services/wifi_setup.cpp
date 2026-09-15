@@ -4,6 +4,7 @@
 #include <WiFiManager.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <Preferences.h>
@@ -95,6 +96,10 @@ constexpr char kLocationLonAttrs[] =
  * Each location is three fields. WiFiManager stores ids and labels by pointer,
  * so these must be string literals rather than generated text.
  */
+/** Hidden: the radios in the portal script write the chosen row index here. */
+WiFiManagerParameter s_param_loc_select("locsel", "", "", 4,
+                                        " class=\"locsel\"", WFM_NO_LABEL);
+
 WiFiManagerParameter s_param_loc_name[services::kMaxLocations] = {
     {"l1n", "Location 1", "", kLocationNameParamLen, kLocationNameAttrs},
     {"l2n", "Location 2", "", kLocationNameParamLen, kLocationNameAttrs},
@@ -148,6 +153,11 @@ void refreshPortalParamDefaults() {
     s_param_loc_lat[i].setValue(lat_buf, kCoordParamLen);
     s_param_loc_lon[i].setValue(lon_buf, kCoordParamLen);
   }
+  char sel_buf[4];
+  const uint8_t selected = services::locations::selectedIndex();
+  snprintf(sel_buf, sizeof(sel_buf), "%u",
+           (selected == services::locations::kNoSelection) ? 0u : selected);
+  s_param_loc_select.setValue(sel_buf, 4);
   snprintf(s_miles_checkbox_attrs, sizeof(s_miles_checkbox_attrs), "type=\"checkbox\"%s",
            ui::radar::useMiles() ? " checked" : "");
   s_param_miles.setValue("T", 2);
@@ -180,6 +190,15 @@ void onPortalParamsSaved() {
   char loc_err[96];
   services::locations::saveFromPortalLines(loc_lines, services::kMaxLocations,
                                            loc_err, sizeof(loc_err));
+
+  // Select by name: blank or malformed rows shift the parsed indices.
+  const char* sel_value = s_param_loc_select.getValue();
+  if (sel_value[0] != '\0') {
+    const long row = strtol(sel_value, nullptr, 10);
+    if (row >= 0 && row < static_cast<long>(services::kMaxLocations)) {
+      services::locations::selectByName(s_param_loc_name[row].getValue());
+    }
+  }
 }
 
 void attachPortalParams(WiFiManager& wm) {
@@ -187,6 +206,7 @@ void attachPortalParams(WiFiManager& wm) {
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_flight_levels);
+  wm.addParameter(&s_param_loc_select);
   for (size_t i = 0; i < services::kMaxLocations; ++i) {
     wm.addParameter(&s_param_loc_name[i]);
     wm.addParameter(&s_param_loc_lat[i]);
@@ -306,6 +326,8 @@ constexpr char kPortalHeadHtml[] =
     ".locrow input{margin:0;min-width:0}"
     ".locrow input.ln{flex:3}"
     ".locrow input.lc{flex:2}"
+    ".locrow input[type=radio]{flex:0 0 auto;width:auto}"
+    "input.locsel{display:none}"
     "</style>"
     "<script>addEventListener('DOMContentLoaded',function(){"
     "document.querySelectorAll('button').forEach(function(b){"
@@ -314,6 +336,7 @@ constexpr char kPortalHeadHtml[] =
     // Each location is three separate WiFiManager params, so the name, lat and
     // lon inputs arrive as siblings separated by <br/>. Pull each trio into one
     // flex row and drop the breaks so they sit on a single line.
+    "var sv=document.querySelector('input.locsel');"
     "for(var i=1;i<=8;i++){"
     "var t=[document.getElementById('l'+i+'n'),document.getElementById('l'+i+'a'),"
     "document.getElementById('l'+i+'o')];"
@@ -322,6 +345,9 @@ constexpr char kPortalHeadHtml[] =
     // Put the row where the label was, then pull the label in as its first cell.
     "var lb=document.querySelector(\"label[for='l\"+i+\"n']\");"
     "var an=lb||t[0];an.parentNode.insertBefore(r,an);"
+    "if(sv){var rb=document.createElement('input');rb.type='radio';"
+    "rb.name='locselr';rb.value=String(i-1);rb.checked=(sv.value===String(i-1));"
+    "rb.onchange=function(){sv.value=this.value;};r.appendChild(rb);}"
     "if(lb){lb.textContent=String(i);r.appendChild(lb);}"
     "t.forEach(function(el){"
     "var p=el.previousSibling;"
