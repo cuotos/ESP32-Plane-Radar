@@ -15,12 +15,15 @@
 #endif
 
 #include "config.h"
+#include "services/locations.h"
 #include "services/radar_location.h"
 #include "ui/radar_range.h"
 #include "ui/status_screens.h"
 
 portMUX_TYPE s_boot_mux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_boot_tap_pending = false;
+volatile bool s_boot_hold_pending = false;
+volatile bool s_boot_hold_fired = false;
 volatile bool s_boot_is_down = false;
 volatile unsigned long s_boot_down_ms = 0;
 bool s_long_press_handled = false;
@@ -35,9 +38,12 @@ void IRAM_ATTR onBootButtonIsr() {
     s_boot_down_ms = now;
   } else if (s_boot_is_down) {
     const unsigned long held = now - s_boot_down_ms;
-    if (held >= config::kBootTapMinMs && held < config::kBootResetHoldMs) {
+    // A press that already fired a hold must not also register as a tap.
+    if (!s_boot_hold_fired && held >= config::kBootTapMinMs &&
+        held < config::kMenuHoldMs) {
       s_boot_tap_pending = true;
     }
+    s_boot_hold_fired = false;
     s_boot_is_down = false;
   }
   portEXIT_CRITICAL_ISR(&s_boot_mux);
@@ -85,6 +91,13 @@ char s_runways_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_runways("show_runways", "Show airport runways", "T", 2,
                                      s_runways_checkbox_attrs, WFM_LABEL_AFTER);
 
+constexpr int kLocationsParamLen = 512;
+constexpr char kLocationsAttrs[] =
+    " placeholder=\"Home, 52.3676, 4.9041\" rows=\"8\" style=\"width:100%\"";
+WiFiManagerParameter s_param_locations(
+    "locations", "Saved locations — one per line: name, lat, lon", "",
+    kLocationsParamLen, kLocationsAttrs);
+
 char s_flight_levels_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_flight_levels("flight_levels",
                                            "Altitude as flight levels (030 = 3,000 ft)",
@@ -107,6 +120,7 @@ void refreshPortalParamDefaults() {
   snprintf(s_flight_levels_checkbox_attrs, sizeof(s_flight_levels_checkbox_attrs),
            "type=\"checkbox\"%s", ui::radar::flightLevels() ? " checked" : "");
   s_param_flight_levels.setValue("T", 2);
+  s_param_locations.setValue(services::locations::rawText(), kLocationsParamLen);
 }
 
 void onPortalParamsSaved() {
@@ -117,6 +131,9 @@ void onPortalParamsSaved() {
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveFlightLevelsFromPortal(s_param_flight_levels.getValue());
+  char loc_err[96];
+  services::locations::saveFromPortal(s_param_locations.getValue(), loc_err,
+                                      sizeof(loc_err));
 }
 
 void attachPortalParams(WiFiManager& wm) {
@@ -126,6 +143,7 @@ void attachPortalParams(WiFiManager& wm) {
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_flight_levels);
+  wm.addParameter(&s_param_locations);
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }
 
@@ -202,6 +220,7 @@ void resetWifiCredentials() {
   markForceConfigPortal();
   eraseWifiCredentials();
   services::location::clear();
+  services::locations::clear();
   ui::radar::unitsReset();
   Serial.println("WiFi credentials, location, and units cleared");
 }
@@ -407,6 +426,38 @@ bool bootButtonConsumeTap() {
   }
   portEXIT_CRITICAL(&s_boot_mux);
   return tap;
+}
+
+void bootButtonPollHold() {
+  if (!wifiBootButtonPressed()) {
+    return;
+  }
+  portENTER_CRITICAL(&s_boot_mux);
+  if (!s_boot_is_down) {
+    s_boot_is_down = true;
+    s_boot_down_ms = millis();
+  }
+  const unsigned long down_ms = s_boot_down_ms;
+  const bool already_fired = s_boot_hold_fired;
+  portEXIT_CRITICAL(&s_boot_mux);
+
+  if (already_fired || millis() - down_ms < config::kMenuHoldMs) {
+    return;
+  }
+  portENTER_CRITICAL(&s_boot_mux);
+  s_boot_hold_fired = true;
+  s_boot_hold_pending = true;
+  portEXIT_CRITICAL(&s_boot_mux);
+}
+
+bool bootButtonConsumeHold() {
+  portENTER_CRITICAL(&s_boot_mux);
+  const bool hold = s_boot_hold_pending;
+  if (hold) {
+    s_boot_hold_pending = false;
+  }
+  portEXIT_CRITICAL(&s_boot_mux);
+  return hold;
 }
 
 void bootButtonPollLongPress() {

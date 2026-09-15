@@ -17,10 +17,32 @@ After Wi‑Fi is saved, the device reconnects automatically; the radar runs in t
 
 | Action | Effect |
 |--------|--------|
-| **Short tap** | Cycle range preset (5 → 10 → 15 → 25 km); saved to flash |
-| **Hold 3 s** | Clear Wi‑Fi, location, and units; reboot into setup portal |
+| **Click** | On the radar: open the menu. In the menu: move down one row |
+| **Hold** (0.6 s) | On the radar: open the menu. In the menu: activate the highlighted row |
+| **Hold 3 s at power-on** | Clear Wi‑Fi, location, and settings; reboot into the setup portal |
 
-During setup you can also hold BOOT at power-on to force a credential reset (same as the long press).
+The menu closes itself after 15 s with no input. ADS-B polling pauses while it is open.
+
+### Menu
+
+| Page | Does |
+|------|------|
+| Range | Pick a range preset |
+| Altitude | Flight levels (`030`) or feet (`3000 ft`) |
+| Location | Centre the radar on a saved location |
+| Network | Show the current SSID and IP address |
+| Reset Wi-Fi | Erase Wi-Fi, location and settings, with a confirm step |
+
+### Saved locations
+
+Enter up to 8 in the Wi-Fi portal, one per line as `name, lat, lon`:
+
+```
+Home, 52.3676, 4.9041
+Gatwick, 51.1537, -0.1821
+```
+
+Names are truncated to 14 characters. A malformed line is skipped and reported; the others still save. Select one from the device menu.
 
 ## Wi‑Fi setup portal
 
@@ -66,7 +88,7 @@ Layout and colors: `include/ui/radar_theme.h`.
 | 15 km / 9 mi | ~20 km |
 | 25 km / 16 mi | ~33.3 km |
 
-Preset, miles/km, runway overlay and altitude format persist across reboot (`planeradar` NVS namespace) and are cleared by the 3 s BOOT reset.
+Preset, miles/km, runway overlay, altitude format and saved locations persist across reboot (`planeradar` NVS namespace) and are cleared by the Wi-Fi reset.
 
 ### Runways
 
@@ -99,7 +121,7 @@ Edit **`include/config.h`** for hardware and behavior:
 |------|----------------|
 | Portal | `kPortalApName`, `kPortalIp`, `kPortalHostname` / `kPortalHostUrl` (mDNS; needs `-DWM_MDNS` in `platformio.ini`) |
 | Wi‑Fi timing | connect attempts, reconnect grace, portal timeout (`0` = no timeout) |
-| BOOT | `kBootPin`, `kBootResetHoldMs`, `kBootTapMinMs` |
+| BOOT | `kBootPin`, `kBootResetHoldMs`, `kBootTapMinMs`, `kMenuHoldMs`, `kMenuIdleMs` |
 | Display SPI | pins, `kDisplayInvert`, `kDisplayRgbOrder`, `kDisplaySpiWriteHz` |
 | Default location | `kDefaultRadarLat`, `kDefaultRadarLon` (until portal overrides) |
 | ADS-B | `kAdsbFetchIntervalMs`, `kAdsbShowGroundAircraft` |

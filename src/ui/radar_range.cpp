@@ -89,6 +89,20 @@ void rangeNext() {
   saveRangeIndex();
 }
 
+void rangeSetIndex(uint8_t index) {
+  if (index >= kRangePresetCount) {
+    return;
+  }
+  s_range_index = index;
+  saveRangeIndex();
+}
+
+void setFlightLevels(bool on) {
+  s_flight_levels = on;
+  saveFlightLevels();
+  Serial.printf("Altitude tags: %s\n", s_flight_levels ? "flight levels" : "feet");
+}
+
 const RangePreset& rangeCurrent() { return kRangePresets[s_range_index]; }
 
 uint8_t rangeIndex() { return s_range_index; }
