@@ -21,13 +21,7 @@ uint8_t selectedIndex();
 /** Apply a location as the radar centre and remember the choice. */
 bool select(size_t index);
 
-/** The stored list text, for prefilling the portal field. Never null. */
-const char* rawText();
-
-/** One "name, lat, lon" line for prefilling portal field `index`; empty if unset. */
-void formatLine(size_t index, char* out, size_t out_size);
-
-/** Join one-per-field portal lines and save them. See saveFromPortal(). */
+/** Join one-per-row portal lines and save them. See saveFromPortal(). */
 bool saveFromPortalLines(const char* const* lines, size_t line_count, char* err,
                          size_t err_size);
 

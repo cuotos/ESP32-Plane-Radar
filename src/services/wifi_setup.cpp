@@ -78,11 +78,6 @@ constexpr int kCoordParamLen = 20;
 constexpr char kCoordInputAttrs[] =
     " type=\"number\" step=\"0.000001\"";
 
-WiFiManagerParameter s_param_lat("radar_lat", "Latitude (deg)", "0",
-                                kCoordParamLen, kCoordInputAttrs);
-WiFiManagerParameter s_param_lon("radar_lon", "Longitude (deg)", "0",
-                                kCoordParamLen, kCoordInputAttrs);
-
 char s_miles_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_miles("use_miles", "Display distances in miles", "T", 2,
                                    s_miles_checkbox_attrs, WFM_LABEL_AFTER);
@@ -91,24 +86,44 @@ char s_runways_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_runways("show_runways", "Show airport runways", "T", 2,
                                      s_runways_checkbox_attrs, WFM_LABEL_AFTER);
 
-/** One "14-char name, lat, lon" line, with headroom. */
-constexpr int kLocationParamLen = 48;
-constexpr char kLocationAttrs[] = " placeholder=\"Home, 52.3676, 4.9041\"";
+constexpr int kLocationNameParamLen = 15;  // 14 visible characters plus NUL
+constexpr char kLocationNameAttrs[] = " placeholder=\"Home\" maxlength=\"14\"";
 
 /**
- * WiFiManager renders each parameter as a single-line <input>, so the list is
- * one field per location rather than a textarea. Ids and labels are stored by
- * pointer, hence the string literals.
+ * Each location is three fields. WiFiManager stores ids and labels by pointer,
+ * so these must be string literals rather than generated text.
  */
-WiFiManagerParameter s_param_locations[services::kMaxLocations] = {
-    {"loc1", "Location 1 — name, lat, lon", "", kLocationParamLen, kLocationAttrs},
-    {"loc2", "Location 2", "", kLocationParamLen, kLocationAttrs},
-    {"loc3", "Location 3", "", kLocationParamLen, kLocationAttrs},
-    {"loc4", "Location 4", "", kLocationParamLen, kLocationAttrs},
-    {"loc5", "Location 5", "", kLocationParamLen, kLocationAttrs},
-    {"loc6", "Location 6", "", kLocationParamLen, kLocationAttrs},
-    {"loc7", "Location 7", "", kLocationParamLen, kLocationAttrs},
-    {"loc8", "Location 8", "", kLocationParamLen, kLocationAttrs},
+WiFiManagerParameter s_param_loc_name[services::kMaxLocations] = {
+    {"l1n", "Location 1 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l2n", "Location 2 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l3n", "Location 3 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l4n", "Location 4 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l5n", "Location 5 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l6n", "Location 6 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l7n", "Location 7 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l8n", "Location 8 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+};
+
+WiFiManagerParameter s_param_loc_lat[services::kMaxLocations] = {
+    {"l1a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l2a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l3a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l4a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l5a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l6a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l7a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l8a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+};
+
+WiFiManagerParameter s_param_loc_lon[services::kMaxLocations] = {
+    {"l1o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l2o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l3o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l4o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l5o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l6o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l7o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l8o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
 };
 
 char s_flight_levels_checkbox_attrs[32] = "type=\"checkbox\"";
@@ -118,12 +133,19 @@ WiFiManagerParameter s_param_flight_levels("flight_levels",
                                            WFM_LABEL_AFTER);
 
 void refreshPortalParamDefaults() {
-  char lat_buf[kCoordParamLen + 1];
-  char lon_buf[kCoordParamLen + 1];
-  snprintf(lat_buf, sizeof(lat_buf), "%.6f", services::location::lat());
-  snprintf(lon_buf, sizeof(lon_buf), "%.6f", services::location::lon());
-  s_param_lat.setValue(lat_buf, kCoordParamLen);
-  s_param_lon.setValue(lon_buf, kCoordParamLen);
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    const services::Location* item = services::locations::at(i);
+    char lat_buf[kCoordParamLen + 1] = "";
+    char lon_buf[kCoordParamLen + 1] = "";
+    if (item != nullptr) {
+      snprintf(lat_buf, sizeof(lat_buf), "%.6f", item->lat);
+      snprintf(lon_buf, sizeof(lon_buf), "%.6f", item->lon);
+    }
+    s_param_loc_name[i].setValue(item != nullptr ? item->name : "",
+                                 kLocationNameParamLen);
+    s_param_loc_lat[i].setValue(lat_buf, kCoordParamLen);
+    s_param_loc_lon[i].setValue(lon_buf, kCoordParamLen);
+  }
   snprintf(s_miles_checkbox_attrs, sizeof(s_miles_checkbox_attrs), "type=\"checkbox\"%s",
            ui::radar::useMiles() ? " checked" : "");
   s_param_miles.setValue("T", 2);
@@ -133,24 +155,25 @@ void refreshPortalParamDefaults() {
   snprintf(s_flight_levels_checkbox_attrs, sizeof(s_flight_levels_checkbox_attrs),
            "type=\"checkbox\"%s", ui::radar::flightLevels() ? " checked" : "");
   s_param_flight_levels.setValue("T", 2);
-  for (size_t i = 0; i < services::kMaxLocations; ++i) {
-    char line[kLocationParamLen];
-    services::locations::formatLine(i, line, sizeof(line));
-    s_param_locations[i].setValue(line, kLocationParamLen);
-  }
 }
 
 void onPortalParamsSaved() {
-  if (!services::location::saveFromStrings(s_param_lat.getValue(),
-                                           s_param_lon.getValue())) {
-    Serial.println("Invalid lat/lon in portal — keeping previous location");
-  }
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveFlightLevelsFromPortal(s_param_flight_levels.getValue());
+  // Recombine each row into the "name, lat, lon" form the parser validates.
+  char loc_text[services::kMaxLocations][kCoordParamLen * 2 + 32];
   const char* loc_lines[services::kMaxLocations];
   for (size_t i = 0; i < services::kMaxLocations; ++i) {
-    loc_lines[i] = s_param_locations[i].getValue();
+    const char* name = s_param_loc_name[i].getValue();
+    const char* lat = s_param_loc_lat[i].getValue();
+    const char* lon = s_param_loc_lon[i].getValue();
+    if (name[0] == '\0' && lat[0] == '\0' && lon[0] == '\0') {
+      loc_text[i][0] = '\0';  // wholly blank row, not a broken one
+    } else {
+      snprintf(loc_text[i], sizeof(loc_text[i]), "%s, %s, %s", name, lat, lon);
+    }
+    loc_lines[i] = loc_text[i];
   }
   char loc_err[96];
   services::locations::saveFromPortalLines(loc_lines, services::kMaxLocations,
@@ -159,13 +182,13 @@ void onPortalParamsSaved() {
 
 void attachPortalParams(WiFiManager& wm) {
   refreshPortalParamDefaults();
-  wm.addParameter(&s_param_lat);
-  wm.addParameter(&s_param_lon);
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_flight_levels);
-  for (auto& param : s_param_locations) {
-    wm.addParameter(&param);
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    wm.addParameter(&s_param_loc_name[i]);
+    wm.addParameter(&s_param_loc_lat[i]);
+    wm.addParameter(&s_param_loc_lon[i]);
   }
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }

@@ -37,13 +37,11 @@ Every page ends with **Exit**, which returns to the radar. Choosing a setting ap
 
 ### Saved locations
 
-The portal has eight **Location** fields. Fill in as many as you want, one location per field, as `name, lat, lon`:
+The portal has eight location rows, each with **name**, **latitude** and **longitude** boxes. Fill in as many as you want and leave the rest blank.
 
-```
-Home, 52.3676, 4.9041
-```
+Names are capped at 14 characters. A row with a bad coordinate is ignored and reported on the serial log; the other rows still save. Select a location from the device menu.
 
-Leave a field blank to skip it. Names are truncated to 14 characters. A malformed field is ignored and reported on the serial log; the others still save. Select one from the device menu.
+If you have never picked one, the device uses the first row in the list. With no locations set at all, it falls back to `kDefaultRadarLat` / `kDefaultRadarLon` in `include/config.h`.
 
 ## Wi‑Fi setup portal
 

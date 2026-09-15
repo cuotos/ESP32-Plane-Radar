@@ -35,6 +35,19 @@ void saveRaw() {
   s_prefs.end();
 }
 
+/** With no explicit choice, fall back to the first entry so the list always
+ *  drives the radar centre. */
+void ensureSelection() {
+  if (s_selected != kNoSelection || s_list.count == 0) {
+    return;
+  }
+  const Location& first = s_list.items[0];
+  if (location::saveCoords(first.lat, first.lon)) {
+    s_selected = 0;
+    Serial.printf("Location: defaulted to %s\n", first.name);
+  }
+}
+
 }  // namespace
 
 void init() {
@@ -54,6 +67,7 @@ void init() {
   if (s_selected != kNoSelection && s_selected >= s_list.count) {
     s_selected = kNoSelection;  // list shrank since the choice was made
   }
+  ensureSelection();
   Serial.printf("Locations: %u loaded\n", static_cast<unsigned>(s_list.count));
 }
 
@@ -77,17 +91,6 @@ bool select(size_t index) {
   saveRaw();
   Serial.printf("Location: %s (%.4f, %.4f)\n", item->name, item->lat, item->lon);
   return true;
-}
-
-const char* rawText() { return s_raw; }
-
-void formatLine(size_t index, char* out, size_t out_size) {
-  const Location* item = at(index);
-  if (item == nullptr) {
-    out[0] = '\0';
-    return;
-  }
-  snprintf(out, out_size, "%s, %.6f, %.6f", item->name, item->lat, item->lon);
 }
 
 bool saveFromPortalLines(const char* const* lines, size_t line_count, char* err,
@@ -121,6 +124,7 @@ bool saveFromPortal(const char* text, char* err, size_t err_size) {
   if (s_selected != kNoSelection && s_selected >= s_list.count) {
     s_selected = kNoSelection;
   }
+  ensureSelection();
   saveRaw();
   if (err[0] != '\0') {
     Serial.printf("Locations: %s\n", err);
