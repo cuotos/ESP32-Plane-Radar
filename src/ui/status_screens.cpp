@@ -39,6 +39,7 @@ bool s_connecting_text_drawn = false;
 constexpr auto& kGfxTitle = fonts::FreeSans18pt7b;
 constexpr auto& kGfxBody = fonts::FreeSans12pt7b;
 constexpr auto& kGfxDetail = fonts::Font2;
+constexpr auto& kGfxSmall = fonts::FreeSans9pt7b;
 constexpr auto& kPortalGfxTitle = fonts::FreeSansBold18pt7b;
 constexpr auto& kPortalGfxBody = fonts::FreeSansBold12pt7b;
 constexpr auto& kPortalGfxEmphasis = fonts::FreeSansBold18pt7b;
@@ -228,6 +229,29 @@ void statusScreenConnectFailed() {
       {"to reset Wi-Fi", 1.0f, &kGfxBody},
   };
   drawTextBlock(config::kColorYellow, config::kTextOnYellow, lines,
+                sizeof(lines) / sizeof(lines[0]));
+}
+
+void statusScreenIpAddress(const char* ip) {
+  if (ip == nullptr || ip[0] == '\0') {
+    const TextLine lines[] = {
+        {"No Wi-Fi", 1.15f, &kGfxTitle},
+        {"Not connected", 1.0f, &kGfxBody},
+    };
+    drawTextBlock(config::kColorBlack, config::kTextOnBlack, lines,
+                  sizeof(lines) / sizeof(lines[0]));
+    return;
+  }
+
+  static char s_ip_line[40];
+  strncpy(s_ip_line, ip, sizeof(s_ip_line) - 1);
+  s_ip_line[sizeof(s_ip_line) - 1] = '\0';
+
+  const TextLine lines[] = {
+      {"IP address", 0.95f, &kGfxSmall},
+      {s_ip_line, 1.15f, &kGfxBody},
+  };
+  drawTextBlock(config::kColorBlack, config::kTextOnBlack, lines,
                 sizeof(lines) / sizeof(lines[0]));
 }
 

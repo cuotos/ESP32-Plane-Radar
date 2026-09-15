@@ -14,5 +14,7 @@ bool wifiBootButtonPressed();
 void bootButtonInit();
 /** Latched short tap (survives blocking HTTP/display work). */
 bool bootButtonConsumeTap();
+/** Latched double tap (two taps within config::kBootDoubleTapMaxGapMs). */
+bool bootButtonConsumeDoubleTap();
 /** Call each loop iteration; triggers WiFi reset on long hold. */
 void bootButtonPollLongPress();

@@ -21,6 +21,9 @@
 
 portMUX_TYPE s_boot_mux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_boot_tap_pending = false;
+volatile bool s_boot_double_tap_pending = false;
+volatile unsigned long s_boot_last_tap_ms = 0;
+volatile bool s_boot_has_last_tap = false;
 volatile bool s_boot_is_down = false;
 volatile unsigned long s_boot_down_ms = 0;
 bool s_long_press_handled = false;
@@ -37,6 +40,14 @@ void IRAM_ATTR onBootButtonIsr() {
     const unsigned long held = now - s_boot_down_ms;
     if (held >= config::kBootTapMinMs && held < config::kBootResetHoldMs) {
       s_boot_tap_pending = true;
+      if (s_boot_has_last_tap &&
+          now - s_boot_last_tap_ms <= config::kBootDoubleTapMaxGapMs) {
+        s_boot_double_tap_pending = true;
+        s_boot_has_last_tap = false;  // third tap starts a fresh pair
+      } else {
+        s_boot_last_tap_ms = now;
+        s_boot_has_last_tap = true;
+      }
     }
     s_boot_is_down = false;
   }
@@ -396,6 +407,16 @@ bool bootButtonConsumeTap() {
   }
   portEXIT_CRITICAL(&s_boot_mux);
   return tap;
+}
+
+bool bootButtonConsumeDoubleTap() {
+  portENTER_CRITICAL(&s_boot_mux);
+  const bool double_tap = s_boot_double_tap_pending;
+  if (double_tap) {
+    s_boot_double_tap_pending = false;
+  }
+  portEXIT_CRITICAL(&s_boot_mux);
+  return double_tap;
 }
 
 void bootButtonPollLongPress() {

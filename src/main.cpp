@@ -20,6 +20,8 @@ bool g_radar_visible = false;
 unsigned long g_wifi_down_since = 0;
 unsigned long g_last_reconnect_ms = 0;
 unsigned long g_last_adsb_fetch_ms = 0;
+/** Non-zero while the BOOT double-tap IP screen is up; radar work pauses. */
+unsigned long g_ip_screen_until_ms = 0;
 
 void showRadarIfConnected() {
   if (WiFi.status() != WL_CONNECTED) {
@@ -42,10 +44,25 @@ void onRangeTap() {
   }
 }
 
+void showIpScreen() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  const String ip = connected ? WiFi.localIP().toString() : String();
+  Serial.printf("BOOT double-tap — IP: %s\n", connected ? ip.c_str() : "(not connected)");
+  statusScreenIpAddress(connected ? ip.c_str() : nullptr);
+  g_ip_screen_until_ms = millis() + config::kIpScreenMs;
+  if (g_ip_screen_until_ms == 0) {
+    g_ip_screen_until_ms = 1;  // 0 is the "no screen up" sentinel
+  }
+  g_radar_visible = false;  // forces a radar redraw once the screen expires
+}
+
 void handleBootButton() {
   bootButtonPollLongPress();
   if (bootButtonConsumeTap()) {
     onRangeTap();
+  }
+  if (bootButtonConsumeDoubleTap()) {
+    showIpScreen();
   }
 }
 
@@ -85,6 +102,14 @@ void setup() {
 void loop() {
   handleBootButton();
   wifiLoop();
+
+  if (g_ip_screen_until_ms != 0) {
+    if (static_cast<long>(millis() - g_ip_screen_until_ms) < 0) {
+      delay(10);
+      return;  // hold the IP screen; skip radar and ADS-B work
+    }
+    g_ip_screen_until_ms = 0;
+  }
 
   if (WiFi.status() != WL_CONNECTED) {
     if (g_radar_visible) {
