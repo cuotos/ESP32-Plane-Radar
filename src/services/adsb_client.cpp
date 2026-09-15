@@ -16,6 +16,8 @@ namespace {
 
 constexpr char kApiBase[] = "https://opendata.adsb.fi/api/v3/lat/";
 constexpr float kKmPerNm = 1.852f;
+/** Vertical speed (ft/min) below which an aircraft counts as level. */
+constexpr float kVertTrendDeadbandFpm = 300.0f;
 constexpr int kConnectAttemptMs = 200;
 constexpr unsigned long kRequestTimeoutMs = 10000;
 
@@ -194,6 +196,21 @@ void formatAltitudeTag(const JsonObject& plane, char* out, size_t out_len) {
   }
 }
 
+/** +1 climbing, -1 descending, 0 level or no baro_rate in the feed. */
+int8_t readVerticalTrend(const JsonObject& plane) {
+  float rate = 0.0f;
+  if (!readJsonFloat(plane, "baro_rate", &rate)) {
+    return 0;
+  }
+  if (rate >= kVertTrendDeadbandFpm) {
+    return 1;
+  }
+  if (rate <= -kVertTrendDeadbandFpm) {
+    return -1;
+  }
+  return 0;
+}
+
 void fillTagFields(Aircraft* ac, const JsonObject& plane) {
   copyJsonStringTrimmed(plane, "flight", ac->callsign, sizeof(ac->callsign));
   if (ac->callsign[0] == '\0') {
@@ -202,6 +219,7 @@ void fillTagFields(Aircraft* ac, const JsonObject& plane) {
 
   copyJsonStringTrimmed(plane, "t", ac->type, sizeof(ac->type));
   formatAltitudeTag(plane, ac->alt, sizeof(ac->alt));
+  ac->vert_trend = readVerticalTrend(plane);
 }
 
 }  // namespace

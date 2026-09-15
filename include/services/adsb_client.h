@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace services::adsb {
 
@@ -13,6 +14,8 @@ struct Aircraft {
   char callsign[9];
   char type[5];
   char alt[12];
+  /** Vertical trend from baro_rate: +1 climbing, -1 descending, 0 level/unknown. */
+  int8_t vert_trend;
 };
 
 constexpr size_t kMaxAircraft = 64;
