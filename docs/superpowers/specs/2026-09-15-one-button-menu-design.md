@@ -2,7 +2,7 @@
 
 Date: 2026-09-15
 Status: approved for planning
-Base: `main` (independent of the open PR stack — see [Relationship to the open PRs](#relationship-to-the-open-prs))
+Base: `main`, with PRs #2, #3 and #4 merged (see [Relationship to the open PRs](#relationship-to-the-open-prs))
 
 ## Goal
 
@@ -58,14 +58,14 @@ root page so the current state is readable without entering anything; a green
 tick marks the current value on a settings page.
 
 ```
-Root          Range           Altitude        Location        Reset Wi-Fi
-------        ------          --------        --------        -----------
-Range  10 km  5 km            Flight levels ✓ Home          ✓ Erase Wi-Fi,
-Altitude  FL  10 km         ✓ Feet            Gatwick         location and
-Location Home 15 km            ↑ Up           Peak District   settings?
-Reset Wi-Fi   25 km                           Manchester
-Exit          ↑ Up                            ↑ Up            ↑ No, go back
-                                                              Yes, erase
+Root           Range           Altitude        Location        Reset Wi-Fi
+------         ------          --------        --------        -----------
+Range   10 km  5 km            Flight levels ✓ Home          ✓ Erase Wi-Fi,
+Altitude   FL  10 km         ✓ Feet            Gatwick         location and
+Location Home  15 km            ↑ Up           Peak District   settings?
+Network        25 km                           Manchester
+Reset Wi-Fi    ↑ Up                            ↑ Up            ↑ No, go back
+Exit                                                           Yes, erase
 ```
 
 Activating a value **applies it and stays on the page**, so several ranges can
@@ -76,10 +76,29 @@ Each settings page opens with the highlight already on the current value.
 The Reset page opens on **↑ No, go back**, so a stray hold cannot wipe the
 device. Only the second row erases.
 
+### Network page
+
+Activating **Network** shows the connection details rather than a list:
+
+```
+     NETWORK
+
+     OnePlusdp          <- SSID, truncated to fit
+     192.168.1.42       <- IP address
+
+       ↑ Up
+```
+
+SSID and IP are read live from `WiFi.SSID()` and `WiFi.localIP()` when the page
+opens. Not connected shows `No Wi-Fi` in place of both. The page is static apart
+from the highlighted `↑ Up` row, so click and hold behave as everywhere else.
+This replaces the double-tap gesture in PR #1.
+
 ### Scrolling
 
-Root (5 rows), Range (5) and Altitude (3) fit without scrolling. Location does
-not: 8 locations plus "↑ Up" is 9 rows, against a 5-row budget.
+Root now carries six rows (Range, Altitude, Location, Network, Reset Wi-Fi,
+Exit), so it scrolls too. Range (5) and Altitude (3) fit without scrolling.
+Location does not: 8 locations plus "↑ Up" is 9 rows, against a 5-row budget.
 
 The Location page therefore renders a **5-row sliding window**. The highlight
 moves within the window until it reaches the last visible row, at which point
@@ -104,11 +123,9 @@ so the Wi-Fi reset wipes the lot as the README already promises.
 
 ### Altitude format
 
-`ui::radar::flightLevels()` gates `formatAltitudeTag()` in `adsb_client.cpp`
-between `"%03d"` on hundreds of feet and `"%d ft"`. Tags are formatted at fetch
-time, so a change takes effect on the next ADS-B poll rather than instantly —
-acceptable for a settings toggle, and avoids storing raw feet on `Aircraft` and
-reformatting every frame.
+**Already built** — `altFL`, `ui::radar::flightLevels()` and the
+`formatAltitudeTag()` branch all landed in PR #3. The menu only needs to read
+and write the existing setting; no storage or formatting work remains.
 
 ### Location list
 
@@ -155,11 +172,11 @@ New:
 
 Changed:
 
-- **`radar_range.{h,cpp}`** — gains `flightLevels()` / `setFlightLevels()` and
-  the `altFL` key; `unitsReset()` extended.
-- **`adsb_client.cpp`** — altitude format branch.
-- **`wifi_setup.cpp`** — portal gains the locations textarea and the altitude
-  checkbox; `bootButtonConsumeHold()` added next to the existing tap consumer.
+- **`radar_range.{h,cpp}`** — gains `setFlightLevels()` so the menu can write the
+  setting PR #3 added; `unitsReset()` extended to clear `locs` and `locSel`.
+- **`wifi_setup.cpp`** — portal gains the locations textarea (the altitude
+  checkbox is already there); `bootButtonConsumeHold()` added next to the
+  existing tap consumer.
 - **`main.cpp`** — routes button events to the menu, pauses ADS-B while it is
   open, stops calling `bootButtonPollLongPress()`.
 
@@ -218,6 +235,7 @@ call.
 | Selected location deleted in portal | `locSel` reset to none; radar centre left where it is |
 | NVS write fails | Change applies in RAM for this session; serial warning. Matches how the existing settings behave |
 | Menu opened before Wi-Fi connects | Not reachable — the menu only runs once the radar is up |
+| Wi-Fi drops while the Network page is open | Values are read once when the page opens; they do not refresh. Re-enter the page for current details |
 
 ## Testing
 
@@ -229,6 +247,7 @@ There is no test harness in this repo and no host build, so verification is
 - Each settings page opens on the current value and stays put after applying.
 - Location page scrolls correctly with 8 entries, and chevrons appear only when
   rows are off-screen.
+- Network page shows the live SSID and IP, and `No Wi-Fi` when disconnected.
 - Reset Wi-Fi opens on "No"; "Yes, erase" wipes and reboots into the portal.
 - Menu closes after 15 s idle and the radar redraws.
 - Holding BOOT 3 s at power-on still wipes credentials.
@@ -236,21 +255,16 @@ There is no test harness in this repo and no host build, so verification is
 
 ## Relationship to the open PRs
 
-Four PRs are open on the fork and **overlap this work**:
+**Resolved.** PRs #2 (3-digit flight levels), #3 (configurable altitude format)
+and #4 (climb/descend arrow) are merged to `main`, rebased so they no longer
+carry #1's commit. The altitude sections of this spec are therefore already
+built, and the remaining work is the menu, the location store and the button
+API change.
 
-- **#1 double-tap → IP screen.** Its double-tap gesture has no place in this
-  scheme. The IP address is better as a menu row, though note the root page
-  already uses its full 5-row budget, so a sixth row puts the root into the
-  same sliding window the Location page uses. #1 should be closed or reworked.
-- **#2 3-digit flight levels** and **#3 configurable altitude format.** This
-  spec re-specifies both. If #2 and #3 merge first, the altitude portions here
-  become no-ops and this work rebases onto them.
-- **#4 climb/descend arrow.** Independent — no conflict either way.
-
-This spec is written against `main` as instructed, so it assumes none of them
-have merged. Decide the merge order before implementation starts; the cheapest
-path is to merge #2, #3 and #4, then build the menu on top and drop this spec's
-altitude section.
+**#1 (double-tap → IP screen) should be closed, not merged.** Its gesture
+conflicts with the click-to-open model here, and its content is superseded by
+the Network page above, which shows the SSID alongside the IP. The status-screen
+rendering in #1 is worth lifting when that page is built.
 
 ## Out of scope
 
