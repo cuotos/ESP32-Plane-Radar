@@ -52,6 +52,10 @@ constexpr int kRunwayLabelHeightPx = kCardinalLabelHeightPx;
 constexpr int kRunwayLabelGapPx = 3;
 /** Gap from triangle edge to tag block (px). */
 constexpr int kAircraftLabelGapPx = 1;
+/** Climb/descend arrow drawn beside the altitude tag line. */
+constexpr int kTagArrowWidthPx = 5;
+constexpr int kTagArrowHeightPx = 6;
+constexpr int kTagArrowGapPx = 2;
 /** Keep symbol centroid inside outer ring by at least this inset (px). */
 constexpr int kAircraftInsideRingInsetPx =
     kAircraftNoseLenPx + kAircraftTailHalfPx + 1;

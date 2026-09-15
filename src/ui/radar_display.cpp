@@ -397,12 +397,29 @@ int measureTagBlockWidth(const services::adsb::Aircraft& plane) {
     }
   }
   if (plane.alt[0] != '\0') {
-    const int w = s_draw->textWidth(plane.alt);
+    int w = s_draw->textWidth(plane.alt);
+    if (plane.vert_trend != 0) {
+      w += radar::kTagArrowGapPx + radar::kTagArrowWidthPx;
+    }
     if (w > max_w) {
       max_w = w;
     }
   }
   return max_w;
+}
+
+/** Small filled triangle: apex up for a climb, down for a descent. */
+void drawVerticalTrendArrow(int left_x, int center_y, int8_t trend) {
+  const int right_x = left_x + radar::kTagArrowWidthPx;
+  const int mid_x = left_x + radar::kTagArrowWidthPx / 2;
+  const int half_h = radar::kTagArrowHeightPx / 2;
+  if (trend > 0) {
+    s_draw->fillTriangle(mid_x, center_y - half_h, left_x, center_y + half_h,
+                         right_x, center_y + half_h, radar::kColorTagAltitude);
+  } else {
+    s_draw->fillTriangle(mid_x, center_y + half_h, left_x, center_y - half_h,
+                         right_x, center_y - half_h, radar::kColorTagAltitude);
+  }
 }
 
 void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
@@ -445,6 +462,15 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   if (plane.alt[0] != '\0') {
     s_draw->setTextColor(radar::kColorTagAltitude, radar::kColorBackground);
     s_draw->drawString(plane.alt, anchor_x, ly);
+    if (plane.vert_trend != 0) {
+      // Arrow sits on the outward side of the number, away from the symbol.
+      const int alt_w = s_draw->textWidth(plane.alt);
+      const int arrow_x =
+          tag_on_right
+              ? anchor_x + alt_w + radar::kTagArrowGapPx
+              : anchor_x - alt_w - radar::kTagArrowGapPx - radar::kTagArrowWidthPx;
+      drawVerticalTrendArrow(arrow_x, ly + line_h / 2, plane.vert_trend);
+    }
   }
 }
 

@@ -79,6 +79,7 @@ Preset, miles/km, runway overlay and altitude format persist across reboot (`pla
 - **Inside the outer ring** — red heading triangle, magenta speed vector (clipped at the ring), callsign / type / altitude tags
 - **Outside the ring** (still within ADS-B fetch) — small **red dot on the screen rim** at the correct bearing (direction cue; not distance-accurate past the ring)
 - **Altitude tag** — UK radar style by default, hundreds of feet in 3 digits: `030` = 3,000 ft, `240` = 24,000 ft; `GND` for ground traffic. Uncheck **Altitude as flight levels** in the portal for plain `3000 ft`.
+- **Climb / descend arrow** — small triangle beside the altitude when `baro_rate` exceeds ±300 ft/min; nothing shown for level flight or when the feed omits the field
 - **Tags** — placed toward the **center**: west (left) → tag on the **right** of the symbol; east (right) → tag on the **left**
 
 As range decreases (or aircraft approach), targets move inward; beyond-ring dots become full symbols when they cross the outer ring.
