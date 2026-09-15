@@ -301,7 +301,8 @@ bool wifiLinkUp() {
  */
 constexpr char kPortalHeadHtml[] =
     "<style>"
-    ".locrow{display:flex;gap:4px;margin-bottom:8px}"
+    ".locrow{display:flex;gap:4px;margin-bottom:8px;align-items:center}"
+    ".locrow label{flex:0 0 1.2em;margin:0;font-size:.85em;opacity:.7;text-align:right}"
     ".locrow input{margin:0;min-width:0}"
     ".locrow input.ln{flex:3}"
     ".locrow input.lc{flex:2}"
@@ -318,7 +319,10 @@ constexpr char kPortalHeadHtml[] =
     "document.getElementById('l'+i+'o')];"
     "if(!t[0]||!t[1]||!t[2])continue;"
     "var r=document.createElement('div');r.className='locrow';"
-    "t[0].parentNode.insertBefore(r,t[0]);"
+    // Put the row where the label was, then pull the label in as its first cell.
+    "var lb=document.querySelector(\"label[for='l\"+i+\"n']\");"
+    "var an=lb||t[0];an.parentNode.insertBefore(r,an);"
+    "if(lb){lb.textContent=String(i);r.appendChild(lb);}"
     "t.forEach(function(el){"
     "var p=el.previousSibling;"
     "while(p&&p.nodeName==='BR'){var q=p.previousSibling;p.parentNode.removeChild(p);p=q;}"
