@@ -91,12 +91,25 @@ char s_runways_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_runways("show_runways", "Show airport runways", "T", 2,
                                      s_runways_checkbox_attrs, WFM_LABEL_AFTER);
 
-constexpr int kLocationsParamLen = 512;
-constexpr char kLocationsAttrs[] =
-    " placeholder=\"Home, 52.3676, 4.9041\" rows=\"8\" style=\"width:100%\"";
-WiFiManagerParameter s_param_locations(
-    "locations", "Saved locations — one per line: name, lat, lon", "",
-    kLocationsParamLen, kLocationsAttrs);
+/** One "14-char name, lat, lon" line, with headroom. */
+constexpr int kLocationParamLen = 48;
+constexpr char kLocationAttrs[] = " placeholder=\"Home, 52.3676, 4.9041\"";
+
+/**
+ * WiFiManager renders each parameter as a single-line <input>, so the list is
+ * one field per location rather than a textarea. Ids and labels are stored by
+ * pointer, hence the string literals.
+ */
+WiFiManagerParameter s_param_locations[services::kMaxLocations] = {
+    {"loc1", "Location 1 — name, lat, lon", "", kLocationParamLen, kLocationAttrs},
+    {"loc2", "Location 2", "", kLocationParamLen, kLocationAttrs},
+    {"loc3", "Location 3", "", kLocationParamLen, kLocationAttrs},
+    {"loc4", "Location 4", "", kLocationParamLen, kLocationAttrs},
+    {"loc5", "Location 5", "", kLocationParamLen, kLocationAttrs},
+    {"loc6", "Location 6", "", kLocationParamLen, kLocationAttrs},
+    {"loc7", "Location 7", "", kLocationParamLen, kLocationAttrs},
+    {"loc8", "Location 8", "", kLocationParamLen, kLocationAttrs},
+};
 
 char s_flight_levels_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_flight_levels("flight_levels",
@@ -120,7 +133,11 @@ void refreshPortalParamDefaults() {
   snprintf(s_flight_levels_checkbox_attrs, sizeof(s_flight_levels_checkbox_attrs),
            "type=\"checkbox\"%s", ui::radar::flightLevels() ? " checked" : "");
   s_param_flight_levels.setValue("T", 2);
-  s_param_locations.setValue(services::locations::rawText(), kLocationsParamLen);
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    char line[kLocationParamLen];
+    services::locations::formatLine(i, line, sizeof(line));
+    s_param_locations[i].setValue(line, kLocationParamLen);
+  }
 }
 
 void onPortalParamsSaved() {
@@ -131,9 +148,13 @@ void onPortalParamsSaved() {
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveFlightLevelsFromPortal(s_param_flight_levels.getValue());
+  const char* loc_lines[services::kMaxLocations];
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    loc_lines[i] = s_param_locations[i].getValue();
+  }
   char loc_err[96];
-  services::locations::saveFromPortal(s_param_locations.getValue(), loc_err,
-                                      sizeof(loc_err));
+  services::locations::saveFromPortalLines(loc_lines, services::kMaxLocations,
+                                           loc_err, sizeof(loc_err));
 }
 
 void attachPortalParams(WiFiManager& wm) {
@@ -143,7 +164,9 @@ void attachPortalParams(WiFiManager& wm) {
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_flight_levels);
-  wm.addParameter(&s_param_locations);
+  for (auto& param : s_param_locations) {
+    wm.addParameter(&param);
+  }
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }
 

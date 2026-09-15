@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+#include <cstdio>
 #include <cstring>
 
 #include "services/radar_location.h"
@@ -79,6 +80,35 @@ bool select(size_t index) {
 }
 
 const char* rawText() { return s_raw; }
+
+void formatLine(size_t index, char* out, size_t out_size) {
+  const Location* item = at(index);
+  if (item == nullptr) {
+    out[0] = '\0';
+    return;
+  }
+  snprintf(out, out_size, "%s, %.6f, %.6f", item->name, item->lat, item->lon);
+}
+
+bool saveFromPortalLines(const char* const* lines, size_t line_count, char* err,
+                         size_t err_size) {
+  char joined[kRawTextSize];
+  size_t used = 0;
+  joined[0] = '\0';
+  for (size_t i = 0; i < line_count; ++i) {
+    const char* line = (lines[i] != nullptr) ? lines[i] : "";
+    if (line[0] == '\0') {
+      continue;  // blank field, not a blank location
+    }
+    const int written =
+        snprintf(joined + used, sizeof(joined) - used, "%s\n", line);
+    if (written <= 0 || static_cast<size_t>(written) >= sizeof(joined) - used) {
+      break;  // out of room; keep what fitted
+    }
+    used += static_cast<size_t>(written);
+  }
+  return saveFromPortal(joined, err, err_size);
+}
 
 bool saveFromPortal(const char* text, char* err, size_t err_size) {
   if (text == nullptr) {

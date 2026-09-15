@@ -35,14 +35,13 @@ The menu closes itself after 15 s with no input. ADS-B polling pauses while it i
 
 ### Saved locations
 
-Enter up to 8 in the Wi-Fi portal, one per line as `name, lat, lon`:
+The portal has eight **Location** fields. Fill in as many as you want, one location per field, as `name, lat, lon`:
 
 ```
 Home, 52.3676, 4.9041
-Gatwick, 51.1537, -0.1821
 ```
 
-Names are truncated to 14 characters. A malformed line is skipped and reported; the others still save. Select one from the device menu.
+Leave a field blank to skip it. Names are truncated to 14 characters. A malformed field is ignored and reported on the serial log; the others still save. Select one from the device menu.
 
 ## Wi‑Fi setup portal
 
