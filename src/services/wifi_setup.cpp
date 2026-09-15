@@ -75,9 +75,6 @@ void stopLanWebPortal();
 bool wifiLinkUp();
 
 constexpr int kCoordParamLen = 20;
-constexpr char kCoordInputAttrs[] =
-    " type=\"number\" step=\"0.000001\"";
-
 char s_miles_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_miles("use_miles", "Display distances in miles", "T", 2,
                                    s_miles_checkbox_attrs, WFM_LABEL_AFTER);
@@ -87,43 +84,48 @@ WiFiManagerParameter s_param_runways("show_runways", "Show airport runways", "T"
                                      s_runways_checkbox_attrs, WFM_LABEL_AFTER);
 
 constexpr int kLocationNameParamLen = 15;  // 14 visible characters plus NUL
-constexpr char kLocationNameAttrs[] = " placeholder=\"Home\" maxlength=\"14\"";
+constexpr char kLocationNameAttrs[] =
+    " class=\"ln\" placeholder=\"Name\" maxlength=\"14\"";
+constexpr char kLocationLatAttrs[] =
+    " class=\"lc\" placeholder=\"Lat\" type=\"number\" step=\"0.000001\"";
+constexpr char kLocationLonAttrs[] =
+    " class=\"lc\" placeholder=\"Lon\" type=\"number\" step=\"0.000001\"";
 
 /**
  * Each location is three fields. WiFiManager stores ids and labels by pointer,
  * so these must be string literals rather than generated text.
  */
 WiFiManagerParameter s_param_loc_name[services::kMaxLocations] = {
-    {"l1n", "Location 1 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l2n", "Location 2 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l3n", "Location 3 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l4n", "Location 4 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l5n", "Location 5 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l6n", "Location 6 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l7n", "Location 7 — name", "", kLocationNameParamLen, kLocationNameAttrs},
-    {"l8n", "Location 8 — name", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l1n", "Location 1", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l2n", "Location 2", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l3n", "Location 3", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l4n", "Location 4", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l5n", "Location 5", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l6n", "Location 6", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l7n", "Location 7", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l8n", "Location 8", "", kLocationNameParamLen, kLocationNameAttrs},
 };
 
 WiFiManagerParameter s_param_loc_lat[services::kMaxLocations] = {
-    {"l1a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l2a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l3a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l4a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l5a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l6a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l7a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l8a", "Latitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l1a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l2a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l3a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l4a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l5a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l6a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l7a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l8a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
 };
 
 WiFiManagerParameter s_param_loc_lon[services::kMaxLocations] = {
-    {"l1o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l2o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l3o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l4o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l5o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l6o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l7o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
-    {"l8o", "Longitude", "", kCoordParamLen, kCoordInputAttrs},
+    {"l1o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l2o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l3o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l4o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l5o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l6o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l7o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l8o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
 };
 
 char s_flight_levels_checkbox_attrs[32] = "type=\"checkbox\"";
@@ -298,10 +300,30 @@ bool wifiLinkUp() {
  * relabel from the page itself.
  */
 constexpr char kPortalHeadHtml[] =
+    "<style>"
+    ".locrow{display:flex;gap:4px;margin-bottom:8px}"
+    ".locrow input{margin:0;min-width:0}"
+    ".locrow input.ln{flex:3}"
+    ".locrow input.lc{flex:2}"
+    "</style>"
     "<script>addEventListener('DOMContentLoaded',function(){"
     "document.querySelectorAll('button').forEach(function(b){"
     "if(b.textContent.trim()==='Configure WiFi')b.textContent='Configure';"
-    "});});</script>";
+    "});"
+    // Each location is three separate WiFiManager params, so the name, lat and
+    // lon inputs arrive as siblings separated by <br/>. Pull each trio into one
+    // flex row and drop the breaks so they sit on a single line.
+    "for(var i=1;i<=8;i++){"
+    "var t=[document.getElementById('l'+i+'n'),document.getElementById('l'+i+'a'),"
+    "document.getElementById('l'+i+'o')];"
+    "if(!t[0]||!t[1]||!t[2])continue;"
+    "var r=document.createElement('div');r.className='locrow';"
+    "t[0].parentNode.insertBefore(r,t[0]);"
+    "t.forEach(function(el){"
+    "var p=el.previousSibling;"
+    "while(p&&p.nodeName==='BR'){var q=p.previousSibling;p.parentNode.removeChild(p);p=q;}"
+    "r.appendChild(el);});"
+    "}});</script>";
 
 void ensureWifiManager() {
   if (s_wm_configured) {
