@@ -96,6 +96,10 @@ constexpr char kLocationLonAttrs[] =
  * Each location is three fields. WiFiManager stores ids and labels by pointer,
  * so these must be string literals rather than generated text.
  */
+/** Hidden: the portal script turns this into a <select> of range presets. */
+char s_range_attrs[192] = " class=\"rangesel\"";
+WiFiManagerParameter s_param_range("rangeidx", "Range", "", 4, s_range_attrs);
+
 /** Hidden: the radios in the portal script write the chosen row index here. */
 WiFiManagerParameter s_param_loc_select("locsel", "", "", 4,
                                         " class=\"locsel\"", WFM_NO_LABEL);
@@ -153,6 +157,27 @@ void refreshPortalParamDefaults() {
     s_param_loc_lat[i].setValue(lat_buf, kCoordParamLen);
     s_param_loc_lon[i].setValue(lon_buf, kCoordParamLen);
   }
+  char opts[128];
+  size_t used = 0;
+  opts[0] = '\0';
+  for (size_t i = 0; i < ui::radar::kRangePresetCount; ++i) {
+    char label[12];
+    ui::radar::formatRing3Label(label, sizeof(label),
+                                ui::radar::kRangePresets[i].ring3_km,
+                                ui::radar::useMiles());
+    const int n = snprintf(opts + used, sizeof(opts) - used, "%s%s",
+                           (i == 0) ? "" : "|", label);
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof(opts) - used) {
+      break;
+    }
+    used += static_cast<size_t>(n);
+  }
+  snprintf(s_range_attrs, sizeof(s_range_attrs),
+           " class=\"rangesel\" data-opts=\"%s\"", opts);
+  char range_buf[4];
+  snprintf(range_buf, sizeof(range_buf), "%u", ui::radar::rangeIndex());
+  s_param_range.setValue(range_buf, 4);
+
   char sel_buf[4];
   const uint8_t selected = services::locations::selectedIndex();
   snprintf(sel_buf, sizeof(sel_buf), "%u",
@@ -170,6 +195,10 @@ void refreshPortalParamDefaults() {
 }
 
 void onPortalParamsSaved() {
+  const char* range_value = s_param_range.getValue();
+  if (range_value[0] != '\0') {
+    ui::radar::rangeSetIndex(static_cast<uint8_t>(strtol(range_value, nullptr, 10)));
+  }
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveFlightLevelsFromPortal(s_param_flight_levels.getValue());
@@ -206,6 +235,7 @@ void attachPortalParams(WiFiManager& wm) {
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_flight_levels);
+  wm.addParameter(&s_param_range);
   wm.addParameter(&s_param_loc_select);
   for (size_t i = 0; i < services::kMaxLocations; ++i) {
     wm.addParameter(&s_param_loc_name[i]);
@@ -328,6 +358,7 @@ constexpr char kPortalHeadHtml[] =
     ".locrow input.lc{flex:2}"
     ".locrow input[type=radio]{flex:0 0 auto;width:auto}"
     "input.locsel{display:none}"
+    "input.rangesel{display:none}"
     "</style>"
     "<script>addEventListener('DOMContentLoaded',function(){"
     "document.querySelectorAll('button').forEach(function(b){"
@@ -336,6 +367,15 @@ constexpr char kPortalHeadHtml[] =
     // Each location is three separate WiFiManager params, so the name, lat and
     // lon inputs arrive as siblings separated by <br/>. Pull each trio into one
     // flex row and drop the breaks so they sit on a single line.
+    // Range: swap the hidden text field for a <select> built from data-opts.
+    "var rs=document.querySelector('input.rangesel');"
+    "if(rs){var op=(rs.getAttribute('data-opts')||'').split('|');"
+    "var sl=document.createElement('select');"
+    "op.forEach(function(t,ix){var o=document.createElement('option');"
+    "o.value=String(ix);o.textContent=t;if(String(ix)===rs.value)o.selected=true;"
+    "sl.appendChild(o);});"
+    "sl.onchange=function(){rs.value=this.value;};"
+    "rs.parentNode.insertBefore(sl,rs);}"
     "var sv=document.querySelector('input.locsel');"
     "for(var i=1;i<=8;i++){"
     "var t=[document.getElementById('l'+i+'n'),document.getElementById('l'+i+'a'),"

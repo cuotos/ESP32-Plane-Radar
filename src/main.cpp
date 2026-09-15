@@ -22,6 +22,9 @@ bool g_radar_visible = false;
 unsigned long g_wifi_down_since = 0;
 unsigned long g_last_reconnect_ms = 0;
 unsigned long g_last_adsb_fetch_ms = 0;
+/** Last drawn settings, so a portal save triggers a full redraw. */
+uint8_t g_drawn_range_index = 0xFF;
+uint8_t g_drawn_location_index = 0xFF;
 
 void showRadarIfConnected() {
   if (WiFi.status() != WL_CONNECTED) {
@@ -30,6 +33,14 @@ void showRadarIfConnected() {
   }
   ui::radarDisplayDraw();
   g_radar_visible = true;
+  g_drawn_range_index = ui::radar::rangeIndex();
+  g_drawn_location_index = services::locations::selectedIndex();
+}
+
+/** The portal can change range or centre without going through the menu. */
+bool settingsChangedSinceDraw() {
+  return ui::radar::rangeIndex() != g_drawn_range_index ||
+         services::locations::selectedIndex() != g_drawn_location_index;
 }
 
 void handleBootButton() {
@@ -119,6 +130,8 @@ void loop() {
     g_wifi_down_since = 0;
     if (!g_radar_visible) {
       showRadarIfConnected();
+    } else if (settingsChangedSinceDraw()) {
+      showRadarIfConnected();  // redraw rings and centre after a portal save
     } else if (millis() - g_last_adsb_fetch_ms >= config::kAdsbFetchIntervalMs) {
       g_last_adsb_fetch_ms = millis();
       fetchAndDrawAircraft();
