@@ -33,7 +33,8 @@ constexpr float kRowVlw = 0.95f;
 constexpr int kCenterX = config::kDisplayWidth / 2;
 constexpr int kTitleY = 30;
 constexpr int kFirstRowY = 58;
-constexpr int kResetFirstRowY = 148;
+constexpr int kResetFirstRowY = 140;
+constexpr int kNetworkFirstRowY = 152;
 constexpr int kRowHeight = 26;
 constexpr int kRowInsetX = 40;
 
@@ -101,8 +102,12 @@ void draw() {
     drawResetBody();
   }
 
-  const int first_row_y =
-      (s_page == Page::Reset) ? kResetFirstRowY : kFirstRowY;
+  int first_row_y = kFirstRowY;
+  if (s_page == Page::Reset) {
+    first_row_y = kResetFirstRowY;
+  } else if (s_page == Page::Network) {
+    first_row_y = kNetworkFirstRowY;
+  }
   const size_t total = rowCount();
   const size_t last = (total < s_window.first + kVisibleRows)
                           ? total
@@ -159,24 +164,45 @@ constexpr size_t kRootRowCount = 6;
 const char* const kRootLabels[kRootRowCount] = {
     "Range", "Altitude", "Location", "Network", "Reset Wi-Fi", "Exit"};
 
+/** Rows before the trailing "^ Up" and "Exit" pair. */
+size_t contentRowCount() {
+  switch (s_page) {
+    case Page::Range:
+      return radar::kRangePresetCount;
+    case Page::Altitude:
+      return 2;  // Flight levels, Feet
+    case Page::Location: {
+      const size_t n = services::locations::count();
+      return (n == 0) ? 1 : n;  // entries, or the "none set" notice
+    }
+    case Page::Network:
+      return 0;  // SSID and IP are static text, not rows
+    default:
+      return 0;
+  }
+}
+
+/** Root page index to return to when leaving this page via "^ Up". */
+size_t parentRow() {
+  switch (s_page) {
+    case Page::Range:    return 0;
+    case Page::Altitude: return 1;
+    case Page::Location: return 2;
+    case Page::Network:  return 3;
+    case Page::Reset:    return 4;
+    default:             return 0;
+  }
+}
+
 size_t rowCount() {
   switch (s_page) {
     case Page::Root:
-      return kRootRowCount;
-    case Page::Range:
-      return radar::kRangePresetCount + 1;  // presets plus Up
-    case Page::Altitude:
-      return 3;  // Flight levels, Feet, Up
-    case Page::Location: {
-      const size_t n = services::locations::count();
-      return (n == 0 ? 1 : n) + 1;  // entries (or the notice) plus Up
-    }
-    case Page::Network:
-      return 1;  // Up only; SSID and IP are static text
+      return kRootRowCount;  // last row is already Exit
     case Page::Reset:
-      return 2;  // No first, so a stray hold is harmless
+      return 3;  // No (first, so a stray hold is harmless), Yes, Exit
+    default:
+      return contentRowCount() + 2;  // content, then Up and Exit
   }
-  return 1;
 }
 
 const char* pageTitle() {
@@ -199,45 +225,40 @@ const char* pageTitle() {
 
 void rowLabel(size_t index, char* out, size_t out_size) {
   out[0] = '\0';
+
+  if (s_page == Page::Root) {
+    snprintf(out, out_size, "%s", kRootLabels[index]);
+    return;
+  }
+  if (s_page == Page::Reset) {
+    const char* labels[3] = {"^ No, go back", "Yes, erase", "Exit"};
+    snprintf(out, out_size, "%s", labels[index]);
+    return;
+  }
+
+  // Every other page ends with "^ Up" then "Exit".
+  const size_t content = contentRowCount();
+  if (index >= content) {
+    snprintf(out, out_size, "%s", (index == content) ? "^ Up" : "Exit");
+    return;
+  }
+
   switch (s_page) {
-    case Page::Root:
-      snprintf(out, out_size, "%s", kRootLabels[index]);
-      return;
     case Page::Range:
-      if (index < radar::kRangePresetCount) {
-        radar::formatRing3Label(out, out_size, radar::kRangePresets[index].ring3_km,
-                                radar::useMiles());
-      } else {
-        snprintf(out, out_size, "%s", "^ Up");
-      }
+      radar::formatRing3Label(out, out_size, radar::kRangePresets[index].ring3_km,
+                              radar::useMiles());
       return;
     case Page::Altitude:
-      if (index == 0) {
-        snprintf(out, out_size, "%s", "Flight levels");
-      } else if (index == 1) {
-        snprintf(out, out_size, "%s", "Feet");
-      } else {
-        snprintf(out, out_size, "%s", "^ Up");
-      }
+      snprintf(out, out_size, "%s", index == 0 ? "Flight levels" : "Feet");
       return;
-    case Page::Location: {
-      const size_t n = services::locations::count();
-      if (n == 0) {
-        snprintf(out, out_size, "%s", index == 0 ? "No locations set" : "^ Up");
-        return;
-      }
-      if (index < n) {
+    case Page::Location:
+      if (services::locations::count() == 0) {
+        snprintf(out, out_size, "%s", "No locations set");
+      } else {
         snprintf(out, out_size, "%s", services::locations::at(index)->name);
-      } else {
-        snprintf(out, out_size, "%s", "^ Up");
       }
-      return;
-    }
-    case Page::Reset:
-      snprintf(out, out_size, "%s", index == 0 ? "^ No, go back" : "Yes, erase");
       return;
     default:
-      snprintf(out, out_size, "%s", "^ Up");
       return;
   }
 }
@@ -272,52 +293,55 @@ bool rowIsCurrent(size_t index) {
 }
 
 void activateRow(size_t index) {
+  if (s_page == Page::Root) {
+    switch (index) {
+      case 0: goTo(Page::Range, radar::rangeIndex()); return;
+      case 1: goTo(Page::Altitude, radar::flightLevels() ? 0 : 1); return;
+      case 2: goTo(Page::Location, 0); return;
+      case 3: goTo(Page::Network, 0); return;
+      case 4: goTo(Page::Reset, 0); return;
+      default: close(); return;
+    }
+  }
+
+  if (s_page == Page::Reset) {
+    if (index == 0) {
+      goTo(Page::Root, parentRow());
+    } else if (index == 1) {
+      Serial.println("Menu: erasing Wi-Fi and rebooting");
+      wifiResetCredentialsAndReboot();  // does not return
+    } else {
+      close();
+    }
+    return;
+  }
+
+  const size_t content = contentRowCount();
+  if (index >= content) {
+    if (index == content) {
+      goTo(Page::Root, parentRow());
+    } else {
+      close();
+    }
+    return;
+  }
+
   switch (s_page) {
-    case Page::Root:
-      switch (index) {
-        case 0: goTo(Page::Range, radar::rangeIndex()); return;
-        case 1: goTo(Page::Altitude, radar::flightLevels() ? 0 : 1); return;
-        case 2: goTo(Page::Location, 0); return;
-        case 3: goTo(Page::Network, 0); return;
-        case 4: goTo(Page::Reset, 0); return;
-        default: close(); return;
-      }
     case Page::Range:
-      if (index < radar::kRangePresetCount) {
-        radar::rangeSetIndex(static_cast<uint8_t>(index));
-        draw();  // apply and stay on the page
-      } else {
-        goTo(Page::Root, 0);
-      }
+      radar::rangeSetIndex(static_cast<uint8_t>(index));
+      draw();  // apply and stay on the page
       return;
     case Page::Altitude:
-      if (index < 2) {
-        radar::setFlightLevels(index == 0);
-        draw();
-      } else {
-        goTo(Page::Root, 1);
-      }
+      radar::setFlightLevels(index == 0);
+      draw();
       return;
-    case Page::Location: {
-      const size_t n = services::locations::count();
-      if (n > 0 && index < n) {
+    case Page::Location:
+      if (services::locations::count() > 0) {
         services::locations::select(index);
         draw();
-      } else {
-        goTo(Page::Root, 2);
       }
       return;
-    }
-    case Page::Network:
-      goTo(Page::Root, 3);
-      return;
-    case Page::Reset:
-      if (index == 0) {
-        goTo(Page::Root, 4);
-      } else {
-        Serial.println("Menu: erasing Wi-Fi and rebooting");
-        wifiResetCredentialsAndReboot();  // does not return
-      }
+    default:
       return;
   }
 }

@@ -33,6 +33,8 @@ The menu closes itself after 15 s with no input. ADS-B polling pauses while it i
 | Network | Show the current SSID and IP address |
 | Reset Wi-Fi | Erase Wi-Fi, location and settings, with a confirm step |
 
+Every page ends with **^ Up** (back to the menu root) and **Exit** (straight back to the radar).
+
 ### Saved locations
 
 The portal has eight **Location** fields. Fill in as many as you want, one location per field, as `name, lat, lon`:
