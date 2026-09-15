@@ -269,10 +269,22 @@ bool wifiLinkUp() {
          WiFi.localIP() != IPAddress(0, 0, 0, 0);
 }
 
+/**
+ * WiFiManager has no API for renaming its built-in menu buttons, and its
+ * label strings live in the library under .pio (wiped on a clean build), so
+ * relabel from the page itself.
+ */
+constexpr char kPortalHeadHtml[] =
+    "<script>addEventListener('DOMContentLoaded',function(){"
+    "document.querySelectorAll('button').forEach(function(b){"
+    "if(b.textContent.trim()==='Configure WiFi')b.textContent='Configure';"
+    "});});</script>";
+
 void ensureWifiManager() {
   if (s_wm_configured) {
     return;
   }
+  s_wm.setCustomHeadElement(kPortalHeadHtml);
   s_wm.setConfigPortalTimeout(config::kWifiPortalTimeoutSec);
   s_wm.setAPStaticIPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1),
                            IPAddress(255, 255, 255, 0));
