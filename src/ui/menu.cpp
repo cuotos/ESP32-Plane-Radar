@@ -153,6 +153,9 @@ void draw() {
   }
 }
 
+/** After applying a setting, park the highlight on Exit so one hold leaves. */
+void focusExitAndDraw();
+
 void goTo(Page page, size_t focus_index) {
   s_page = page;
   s_window = Window{};
@@ -164,7 +167,7 @@ constexpr size_t kRootRowCount = 6;
 const char* const kRootLabels[kRootRowCount] = {
     "Range", "Altitude", "Location", "Network", "Reset Wi-Fi", "Exit"};
 
-/** Rows before the trailing "^ Up" and "Exit" pair. */
+/** Rows before the trailing "Exit". */
 size_t contentRowCount() {
   switch (s_page) {
     case Page::Range:
@@ -182,7 +185,7 @@ size_t contentRowCount() {
   }
 }
 
-/** Root page index to return to when leaving this page via "^ Up". */
+/** Root page index to return to when cancelling the reset confirm. */
 size_t parentRow() {
   switch (s_page) {
     case Page::Range:    return 0;
@@ -201,7 +204,7 @@ size_t rowCount() {
     case Page::Reset:
       return 3;  // No (first, so a stray hold is harmless), Yes, Exit
     default:
-      return contentRowCount() + 2;  // content, then Up and Exit
+      return contentRowCount() + 1;  // content, then Exit
   }
 }
 
@@ -231,15 +234,15 @@ void rowLabel(size_t index, char* out, size_t out_size) {
     return;
   }
   if (s_page == Page::Reset) {
-    const char* labels[3] = {"^ No, go back", "Yes, erase", "Exit"};
+    const char* labels[3] = {"No, go back", "Yes, erase", "Exit"};
     snprintf(out, out_size, "%s", labels[index]);
     return;
   }
 
-  // Every other page ends with "^ Up" then "Exit".
+  // Every other page ends with "Exit".
   const size_t content = contentRowCount();
   if (index >= content) {
-    snprintf(out, out_size, "%s", (index == content) ? "^ Up" : "Exit");
+    snprintf(out, out_size, "%s", "Exit");
     return;
   }
 
@@ -316,34 +319,35 @@ void activateRow(size_t index) {
     return;
   }
 
-  const size_t content = contentRowCount();
-  if (index >= content) {
-    if (index == content) {
-      goTo(Page::Root, parentRow());
-    } else {
-      close();
-    }
+  if (index >= contentRowCount()) {
+    close();
     return;
   }
 
   switch (s_page) {
     case Page::Range:
       radar::rangeSetIndex(static_cast<uint8_t>(index));
-      draw();  // apply and stay on the page
+      focusExitAndDraw();
       return;
     case Page::Altitude:
       radar::setFlightLevels(index == 0);
-      draw();
+      focusExitAndDraw();
       return;
     case Page::Location:
       if (services::locations::count() > 0) {
         services::locations::select(index);
-        draw();
+        focusExitAndDraw();
       }
       return;
     default:
       return;
   }
+}
+
+void focusExitAndDraw() {
+  const size_t total = rowCount();
+  windowFocus(total, total - 1, &s_window);  // Exit is always the last row
+  draw();
 }
 
 }  // namespace

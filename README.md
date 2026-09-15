@@ -33,7 +33,7 @@ The menu closes itself after 15 s with no input. ADS-B polling pauses while it i
 | Network | Show the current SSID and IP address |
 | Reset Wi-Fi | Erase Wi-Fi, location and settings, with a confirm step |
 
-Every page ends with **^ Up** (back to the menu root) and **Exit** (straight back to the radar).
+Every page ends with **Exit**, which returns to the radar. Choosing a setting applies it and moves the highlight to Exit, so one more hold gets you out.
 
 ### Saved locations
 
