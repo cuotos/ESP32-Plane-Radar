@@ -4,6 +4,7 @@
 #include <WiFiManager.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include <Preferences.h>
@@ -15,12 +16,15 @@
 #endif
 
 #include "config.h"
+#include "services/locations.h"
 #include "services/radar_location.h"
 #include "ui/radar_range.h"
 #include "ui/status_screens.h"
 
 portMUX_TYPE s_boot_mux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_boot_tap_pending = false;
+volatile bool s_boot_hold_pending = false;
+volatile bool s_boot_hold_fired = false;
 volatile bool s_boot_is_down = false;
 volatile unsigned long s_boot_down_ms = 0;
 bool s_long_press_handled = false;
@@ -35,9 +39,12 @@ void IRAM_ATTR onBootButtonIsr() {
     s_boot_down_ms = now;
   } else if (s_boot_is_down) {
     const unsigned long held = now - s_boot_down_ms;
-    if (held >= config::kBootTapMinMs && held < config::kBootResetHoldMs) {
+    // A press that already fired a hold must not also register as a tap.
+    if (!s_boot_hold_fired && held >= config::kBootTapMinMs &&
+        held < config::kMenuHoldMs) {
       s_boot_tap_pending = true;
     }
+    s_boot_hold_fired = false;
     s_boot_is_down = false;
   }
   portEXIT_CRITICAL_ISR(&s_boot_mux);
@@ -69,14 +76,6 @@ void stopLanWebPortal();
 bool wifiLinkUp();
 
 constexpr int kCoordParamLen = 20;
-constexpr char kCoordInputAttrs[] =
-    " type=\"number\" step=\"0.000001\"";
-
-WiFiManagerParameter s_param_lat("radar_lat", "Latitude (deg)", "0",
-                                kCoordParamLen, kCoordInputAttrs);
-WiFiManagerParameter s_param_lon("radar_lon", "Longitude (deg)", "0",
-                                kCoordParamLen, kCoordInputAttrs);
-
 char s_miles_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_miles("use_miles", "Display distances in miles", "T", 2,
                                    s_miles_checkbox_attrs, WFM_LABEL_AFTER);
@@ -85,6 +84,59 @@ char s_runways_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_runways("show_runways", "Show airport runways", "T", 2,
                                      s_runways_checkbox_attrs, WFM_LABEL_AFTER);
 
+constexpr int kLocationNameParamLen = 15;  // 14 visible characters plus NUL
+constexpr char kLocationNameAttrs[] =
+    " class=\"ln\" placeholder=\"Name\" maxlength=\"14\"";
+constexpr char kLocationLatAttrs[] =
+    " class=\"lc\" placeholder=\"Lat\" type=\"number\" step=\"0.000001\"";
+constexpr char kLocationLonAttrs[] =
+    " class=\"lc\" placeholder=\"Lon\" type=\"number\" step=\"0.000001\"";
+
+/**
+ * Each location is three fields. WiFiManager stores ids and labels by pointer,
+ * so these must be string literals rather than generated text.
+ */
+/** Hidden: the portal script turns this into a <select> of range presets. */
+char s_range_attrs[192] = " class=\"rangesel\"";
+WiFiManagerParameter s_param_range("rangeidx", "Range", "", 4, s_range_attrs);
+
+/** Hidden: the radios in the portal script write the chosen row index here. */
+WiFiManagerParameter s_param_loc_select("locsel", "", "", 4,
+                                        " class=\"locsel\"", WFM_NO_LABEL);
+
+WiFiManagerParameter s_param_loc_name[services::kMaxLocations] = {
+    {"l1n", "Location 1", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l2n", "Location 2", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l3n", "Location 3", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l4n", "Location 4", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l5n", "Location 5", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l6n", "Location 6", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l7n", "Location 7", "", kLocationNameParamLen, kLocationNameAttrs},
+    {"l8n", "Location 8", "", kLocationNameParamLen, kLocationNameAttrs},
+};
+
+WiFiManagerParameter s_param_loc_lat[services::kMaxLocations] = {
+    {"l1a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l2a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l3a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l4a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l5a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l6a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l7a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+    {"l8a", "", "", kCoordParamLen, kLocationLatAttrs, WFM_NO_LABEL},
+};
+
+WiFiManagerParameter s_param_loc_lon[services::kMaxLocations] = {
+    {"l1o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l2o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l3o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l4o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l5o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l6o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l7o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+    {"l8o", "", "", kCoordParamLen, kLocationLonAttrs, WFM_NO_LABEL},
+};
+
 char s_flight_levels_checkbox_attrs[32] = "type=\"checkbox\"";
 WiFiManagerParameter s_param_flight_levels("flight_levels",
                                            "Altitude as flight levels (030 = 3,000 ft)",
@@ -92,12 +144,45 @@ WiFiManagerParameter s_param_flight_levels("flight_levels",
                                            WFM_LABEL_AFTER);
 
 void refreshPortalParamDefaults() {
-  char lat_buf[kCoordParamLen + 1];
-  char lon_buf[kCoordParamLen + 1];
-  snprintf(lat_buf, sizeof(lat_buf), "%.6f", services::location::lat());
-  snprintf(lon_buf, sizeof(lon_buf), "%.6f", services::location::lon());
-  s_param_lat.setValue(lat_buf, kCoordParamLen);
-  s_param_lon.setValue(lon_buf, kCoordParamLen);
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    const services::Location* item = services::locations::at(i);
+    char lat_buf[kCoordParamLen + 1] = "";
+    char lon_buf[kCoordParamLen + 1] = "";
+    if (item != nullptr) {
+      snprintf(lat_buf, sizeof(lat_buf), "%.6f", item->lat);
+      snprintf(lon_buf, sizeof(lon_buf), "%.6f", item->lon);
+    }
+    s_param_loc_name[i].setValue(item != nullptr ? item->name : "",
+                                 kLocationNameParamLen);
+    s_param_loc_lat[i].setValue(lat_buf, kCoordParamLen);
+    s_param_loc_lon[i].setValue(lon_buf, kCoordParamLen);
+  }
+  char opts[128];
+  size_t used = 0;
+  opts[0] = '\0';
+  for (size_t i = 0; i < ui::radar::kRangePresetCount; ++i) {
+    char label[12];
+    ui::radar::formatRing3Label(label, sizeof(label),
+                                ui::radar::kRangePresets[i].ring3_km,
+                                ui::radar::useMiles());
+    const int n = snprintf(opts + used, sizeof(opts) - used, "%s%s",
+                           (i == 0) ? "" : "|", label);
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof(opts) - used) {
+      break;
+    }
+    used += static_cast<size_t>(n);
+  }
+  snprintf(s_range_attrs, sizeof(s_range_attrs),
+           " class=\"rangesel\" data-opts=\"%s\"", opts);
+  char range_buf[4];
+  snprintf(range_buf, sizeof(range_buf), "%u", ui::radar::rangeIndex());
+  s_param_range.setValue(range_buf, 4);
+
+  char sel_buf[4];
+  const uint8_t selected = services::locations::selectedIndex();
+  snprintf(sel_buf, sizeof(sel_buf), "%u",
+           (selected == services::locations::kNoSelection) ? 0u : selected);
+  s_param_loc_select.setValue(sel_buf, 4);
   snprintf(s_miles_checkbox_attrs, sizeof(s_miles_checkbox_attrs), "type=\"checkbox\"%s",
            ui::radar::useMiles() ? " checked" : "");
   s_param_miles.setValue("T", 2);
@@ -110,22 +195,53 @@ void refreshPortalParamDefaults() {
 }
 
 void onPortalParamsSaved() {
-  if (!services::location::saveFromStrings(s_param_lat.getValue(),
-                                           s_param_lon.getValue())) {
-    Serial.println("Invalid lat/lon in portal — keeping previous location");
+  const char* range_value = s_param_range.getValue();
+  if (range_value[0] != '\0') {
+    ui::radar::rangeSetIndex(static_cast<uint8_t>(strtol(range_value, nullptr, 10)));
   }
   ui::radar::saveMilesFromPortal(s_param_miles.getValue());
   ui::radar::saveRunwaysFromPortal(s_param_runways.getValue());
   ui::radar::saveFlightLevelsFromPortal(s_param_flight_levels.getValue());
+  // Recombine each row into the "name, lat, lon" form the parser validates.
+  char loc_text[services::kMaxLocations][kCoordParamLen * 2 + 32];
+  const char* loc_lines[services::kMaxLocations];
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    const char* name = s_param_loc_name[i].getValue();
+    const char* lat = s_param_loc_lat[i].getValue();
+    const char* lon = s_param_loc_lon[i].getValue();
+    if (name[0] == '\0' && lat[0] == '\0' && lon[0] == '\0') {
+      loc_text[i][0] = '\0';  // wholly blank row, not a broken one
+    } else {
+      snprintf(loc_text[i], sizeof(loc_text[i]), "%s, %s, %s", name, lat, lon);
+    }
+    loc_lines[i] = loc_text[i];
+  }
+  char loc_err[96];
+  services::locations::saveFromPortalLines(loc_lines, services::kMaxLocations,
+                                           loc_err, sizeof(loc_err));
+
+  // Select by name: blank or malformed rows shift the parsed indices.
+  const char* sel_value = s_param_loc_select.getValue();
+  if (sel_value[0] != '\0') {
+    const long row = strtol(sel_value, nullptr, 10);
+    if (row >= 0 && row < static_cast<long>(services::kMaxLocations)) {
+      services::locations::selectByName(s_param_loc_name[row].getValue());
+    }
+  }
 }
 
 void attachPortalParams(WiFiManager& wm) {
   refreshPortalParamDefaults();
-  wm.addParameter(&s_param_lat);
-  wm.addParameter(&s_param_lon);
   wm.addParameter(&s_param_miles);
   wm.addParameter(&s_param_runways);
   wm.addParameter(&s_param_flight_levels);
+  wm.addParameter(&s_param_range);
+  wm.addParameter(&s_param_loc_select);
+  for (size_t i = 0; i < services::kMaxLocations; ++i) {
+    wm.addParameter(&s_param_loc_name[i]);
+    wm.addParameter(&s_param_loc_lat[i]);
+    wm.addParameter(&s_param_loc_lon[i]);
+  }
   wm.setSaveParamsCallback(onPortalParamsSaved);
 }
 
@@ -202,6 +318,7 @@ void resetWifiCredentials() {
   markForceConfigPortal();
   eraseWifiCredentials();
   services::location::clear();
+  services::locations::clear();
   ui::radar::unitsReset();
   Serial.println("WiFi credentials, location, and units cleared");
 }
@@ -227,10 +344,62 @@ bool wifiLinkUp() {
          WiFi.localIP() != IPAddress(0, 0, 0, 0);
 }
 
+/**
+ * WiFiManager has no API for renaming its built-in menu buttons, and its
+ * label strings live in the library under .pio (wiped on a clean build), so
+ * relabel from the page itself.
+ */
+constexpr char kPortalHeadHtml[] =
+    "<style>"
+    ".locrow{display:flex;gap:4px;margin-bottom:8px;align-items:center}"
+    ".locrow label{flex:0 0 1.2em;margin:0;font-size:.85em;opacity:.7;text-align:right}"
+    ".locrow input{margin:0;min-width:0}"
+    ".locrow input.ln{flex:3}"
+    ".locrow input.lc{flex:2}"
+    ".locrow input[type=radio]{flex:0 0 auto;width:auto}"
+    "input.locsel{display:none}"
+    "input.rangesel{display:none}"
+    "</style>"
+    "<script>addEventListener('DOMContentLoaded',function(){"
+    "document.querySelectorAll('button').forEach(function(b){"
+    "if(b.textContent.trim()==='Configure WiFi')b.textContent='Configure';"
+    "});"
+    // Each location is three separate WiFiManager params, so the name, lat and
+    // lon inputs arrive as siblings separated by <br/>. Pull each trio into one
+    // flex row and drop the breaks so they sit on a single line.
+    // Range: swap the hidden text field for a <select> built from data-opts.
+    "var rs=document.querySelector('input.rangesel');"
+    "if(rs){var op=(rs.getAttribute('data-opts')||'').split('|');"
+    "var sl=document.createElement('select');"
+    "op.forEach(function(t,ix){var o=document.createElement('option');"
+    "o.value=String(ix);o.textContent=t;if(String(ix)===rs.value)o.selected=true;"
+    "sl.appendChild(o);});"
+    "sl.onchange=function(){rs.value=this.value;};"
+    "rs.parentNode.insertBefore(sl,rs);}"
+    "var sv=document.querySelector('input.locsel');"
+    "for(var i=1;i<=8;i++){"
+    "var t=[document.getElementById('l'+i+'n'),document.getElementById('l'+i+'a'),"
+    "document.getElementById('l'+i+'o')];"
+    "if(!t[0]||!t[1]||!t[2])continue;"
+    "var r=document.createElement('div');r.className='locrow';"
+    // Put the row where the label was, then pull the label in as its first cell.
+    "var lb=document.querySelector(\"label[for='l\"+i+\"n']\");"
+    "var an=lb||t[0];an.parentNode.insertBefore(r,an);"
+    "if(sv){var rb=document.createElement('input');rb.type='radio';"
+    "rb.name='locselr';rb.value=String(i-1);rb.checked=(sv.value===String(i-1));"
+    "rb.onchange=function(){sv.value=this.value;};r.appendChild(rb);}"
+    "if(lb){lb.textContent=String(i);r.appendChild(lb);}"
+    "t.forEach(function(el){"
+    "var p=el.previousSibling;"
+    "while(p&&p.nodeName==='BR'){var q=p.previousSibling;p.parentNode.removeChild(p);p=q;}"
+    "r.appendChild(el);});"
+    "}});</script>";
+
 void ensureWifiManager() {
   if (s_wm_configured) {
     return;
   }
+  s_wm.setCustomHeadElement(kPortalHeadHtml);
   s_wm.setConfigPortalTimeout(config::kWifiPortalTimeoutSec);
   s_wm.setAPStaticIPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1),
                            IPAddress(255, 255, 255, 0));
@@ -407,6 +576,38 @@ bool bootButtonConsumeTap() {
   }
   portEXIT_CRITICAL(&s_boot_mux);
   return tap;
+}
+
+void bootButtonPollHold() {
+  if (!wifiBootButtonPressed()) {
+    return;
+  }
+  portENTER_CRITICAL(&s_boot_mux);
+  if (!s_boot_is_down) {
+    s_boot_is_down = true;
+    s_boot_down_ms = millis();
+  }
+  const unsigned long down_ms = s_boot_down_ms;
+  const bool already_fired = s_boot_hold_fired;
+  portEXIT_CRITICAL(&s_boot_mux);
+
+  if (already_fired || millis() - down_ms < config::kMenuHoldMs) {
+    return;
+  }
+  portENTER_CRITICAL(&s_boot_mux);
+  s_boot_hold_fired = true;
+  s_boot_hold_pending = true;
+  portEXIT_CRITICAL(&s_boot_mux);
+}
+
+bool bootButtonConsumeHold() {
+  portENTER_CRITICAL(&s_boot_mux);
+  const bool hold = s_boot_hold_pending;
+  if (hold) {
+    s_boot_hold_pending = false;
+  }
+  portEXIT_CRITICAL(&s_boot_mux);
+  return hold;
 }
 
 void bootButtonPollLongPress() {

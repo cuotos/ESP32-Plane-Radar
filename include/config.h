@@ -28,6 +28,10 @@ constexpr gpio_num_t kBootPin = GPIO_NUM_9;
 constexpr unsigned long kBootResetHoldMs = 3000UL;
 /** Ignore BOOT taps shorter than this (debounce). */
 constexpr unsigned long kBootTapMinMs = 40UL;
+/** Hold this long to activate a menu row. Shorter presses are clicks. */
+constexpr unsigned long kMenuHoldMs = 600UL;
+/** Close the menu after this long with no button activity. */
+constexpr unsigned long kMenuIdleMs = 15000UL;
 
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
